@@ -115,3 +115,17 @@ def test_invalid_title_and_nonplanned_creation_are_rejected(client: TestClient):
     )
     assert invalid_initial_state.status_code == 422
     assert "planned state" in invalid_initial_state.json()["detail"]
+
+
+def test_audit_endpoint_returns_task_events_and_rejects_unknown_tasks(client: TestClient):
+    task = create_task(client)
+    task_id = task["id"]
+
+    audit = client.get(f"/v1/tasks/{task_id}/audit")
+    assert audit.status_code == 200
+    assert audit.json()[0]["event_type"] == "task_created"
+    assert audit.json()[0]["task_id"] == task_id
+
+    missing = client.get("/v1/tasks/task_missing/audit")
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "Task not found."

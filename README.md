@@ -38,6 +38,7 @@ ClearRoute models a small but common systems problem: a task needs a clear owner
 | [`pyproject.toml`](pyproject.toml) | Pytest import/test-path configuration. |
 | [`Dockerfile`](Dockerfile) | A compact Python 3.12 runtime image that starts Uvicorn on port 8000. |
 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | Runs the focused API regression suite on pushes and pull requests. |
+| [`docs/API_CONSUMER_GUIDE.md`](docs/API_CONSUMER_GUIDE.md) | A consumer-oriented walkthrough of requests, controlled transitions, error contracts, audit events, and the explicit identity boundary. |
 
 For a behavior-level explanation of each source area, read the [technical code tour](docs/CODE_TOUR.md).
 
