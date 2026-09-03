@@ -37,6 +37,7 @@ ClearRoute models a small but common systems problem: a task needs a clear owner
 | [`requirements.txt`](requirements.txt) | Pinned FastAPI, Uvicorn, pytest, and HTTPX dependencies. |
 | [`pyproject.toml`](pyproject.toml) | Pytest import/test-path configuration. |
 | [`Dockerfile`](Dockerfile) | A compact Python 3.12 runtime image that starts Uvicorn on port 8000. |
+| [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | Runs the focused API regression suite on pushes and pull requests. |
 
 For a behavior-level explanation of each source area, read the [technical code tour](docs/CODE_TOUR.md).
 
@@ -57,7 +58,7 @@ Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to inspect FastAPI
 pytest -q
 ```
 
-The reviewed local suite contains **three tests** that passed during the project build. Their purpose is to protect the four core behaviors above, not to claim production completeness.
+The reviewed local suite contains **three tests** that passed during the project build. The [GitHub Actions workflow](https://github.com/Amyvdev1/clearrout-api/actions) now runs the same focused API regression suite on pushes and pull requests. These checks protect the core behaviors above; they do not claim production completeness.
 
 ## Intentional boundaries
 
