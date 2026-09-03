@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, field_validator
 
 app = FastAPI(
     title="ClearRoute API",
-    version="0.1.0",
+    version="0.2.0",
     description=(
         "A portfolio demonstration of a role-aware workflow API with clear states "
         "and audit-friendly events. Uses in-memory demo data only."
@@ -29,6 +29,14 @@ class TaskState(str, Enum):
     in_review = "in_review"
     approved = "approved"
     handed_off = "handed_off"
+
+
+ALLOWED_TRANSITIONS: dict[TaskState, set[TaskState]] = {
+    TaskState.planned: {TaskState.in_review},
+    TaskState.in_review: {TaskState.approved, TaskState.handed_off},
+    TaskState.approved: {TaskState.handed_off},
+    TaskState.handed_off: set(),
+}
 
 
 class TaskCreate(BaseModel):
@@ -113,6 +121,8 @@ def create_event(task_id: str, event_type: Literal["task_created", "state_change
 def next_action(task: Task) -> str:
     if task.requires_approval and task.state == TaskState.in_review:
         return "approval_required"
+    if not task.requires_approval and task.state == TaskState.in_review:
+        return "handoff_ready"
     if task.state == TaskState.approved:
         return "handoff_ready"
     if task.state == TaskState.handed_off:
@@ -127,6 +137,8 @@ def health() -> dict[str, str]:
 
 @app.post("/v1/tasks", response_model=TaskWithAudit, status_code=status.HTTP_201_CREATED)
 def create_task(payload: TaskCreate, role: str = Depends(demo_role)) -> TaskWithAudit:
+    if payload.state != TaskState.planned:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="New tasks must begin in planned state.")
     timestamp = now()
     task = Task(
         id=f"tsk_{uuid4().hex[:8]}",
@@ -152,10 +164,16 @@ def update_task_state(task_id: str, payload: TaskPatch, role: str = Depends(demo
     task = TASKS.get(task_id)
     if task is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found.")
-    if role != "reviewer" and payload.state in {TaskState.approved, TaskState.handed_off}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Reviewer role is required for approval or handoff.")
+    if payload.state not in ALLOWED_TRANSITIONS[task.state]:
+        allowed = ", ".join(state.value for state in ALLOWED_TRANSITIONS[task.state]) or "none"
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Transition from {task.state.value} to {payload.state.value} is not allowed. Allowed next state: {allowed}.",
+        )
     if task.requires_approval and payload.state == TaskState.handed_off and task.state != TaskState.approved:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Approved state is required before handoff.")
+    if role != "reviewer" and payload.state in {TaskState.approved, TaskState.handed_off}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Reviewer role is required for approval or handoff.")
     previous_state = task.state
     task.state = payload.state
     task.updated_at = now()

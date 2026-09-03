@@ -11,11 +11,11 @@ ClearRoute models a small but common systems problem: a task needs a clear owner
 | Capability | Implementation |
 |---|---|
 | **Task contract** | Pydantic request and response models define title, owner, state, approval requirement, timestamps, and audit data. |
-| **Controlled workflow state** | `planned`, `in_review`, `approved`, and `handed_off` are constrained through an enum and transition logic. |
+| **Explicit workflow state graph** | New tasks begin in `planned`; legal transitions are `planned → in_review → approved → handed_off`, with a documented approval-free `in_review → handed_off` path. Skipped, repeated, and reverse transitions return `409 Conflict`. |
 | **Visible role boundary** | An `X-Demo-Role` dependency models `builder` and `reviewer` behavior; approval and handoff require the reviewer role. |
 | **Audit events** | Task creation and state changes create timestamped event records connected to the task. |
 | **Next action** | A single function turns the current task state into `move_to_review`, `approval_required`, `handoff_ready`, or `complete`. |
-| **Executable checks** | The test suite covers creation, review authority, approval-before-handoff, and whitespace-only title rejection. |
+| **Executable checks** | The test suite covers initial state, every approval-required transition, skipped/repeated/reverse-state rejection, approval-before-handoff, review authority, and invalid task creation. |
 | **Local packaging** | Pinned requirements, Pytest configuration, and a Python 3.12 Dockerfile document a reproducible local run path. |
 
 ## API surface
@@ -32,8 +32,8 @@ ClearRoute models a small but common systems problem: a task needs a clear owner
 
 | File / area | What it explains |
 |---|---|
-| [`app/main.py`](app/main.py) | FastAPI initialization, models, state constraints, demo role dependency, next-action logic, endpoint behavior, and audit-event creation. |
-| [`tests/test_main.py`](tests/test_main.py) | Behavioral checks for the API’s creation, permission, transition, and validation rules. |
+| [`app/main.py`](app/main.py) | FastAPI initialization, models, an explicit allowed-transition graph, demo role dependency, next-action logic, endpoint behavior, and audit-event creation. |
+| [`tests/test_main.py`](tests/test_main.py) | Behavioral checks for the API’s creation, permission, legal/illegal transitions, and validation rules. |
 | [`requirements.txt`](requirements.txt) | Pinned FastAPI, Uvicorn, pytest, and HTTPX dependencies. |
 | [`pyproject.toml`](pyproject.toml) | Pytest import/test-path configuration. |
 | [`Dockerfile`](Dockerfile) | A compact Python 3.12 runtime image that starts Uvicorn on port 8000. |
@@ -58,7 +58,19 @@ Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to inspect FastAPI
 pytest -q
 ```
 
-The reviewed local suite contains **three tests** that passed during the project build. The [GitHub Actions workflow](https://github.com/Amyvdev1/clearrout-api/actions) now runs the same focused API regression suite on pushes and pull requests. These checks protect the core behaviors above; they do not claim production completeness.
+The focused regression suite covers the transition contract and validation behavior described above. The [GitHub Actions workflow](https://github.com/Amyvdev1/clearrout-api/actions) runs the same API checks on pushes and pull requests. These checks protect the stated behaviors; they do not claim production completeness.
+
+### State-transition contract
+
+| Current state | Allowed next state | Role / rule |
+|---|---|---|
+| `planned` | `in_review` | Builder or reviewer demo role. |
+| `in_review` | `approved` | Reviewer demo role required. |
+| `in_review` | `handed_off` | Reviewer demo role, only when `requires_approval` is `false`. |
+| `approved` | `handed_off` | Reviewer demo role required. |
+| `handed_off` | None | Terminal demo state. |
+
+The `X-Demo-Role` request header is a visible teaching boundary, not authentication. The graph demonstrates workflow invariants; it is not a substitute for a production identity system, durable audit controls, or real authorization.
 
 ## Intentional boundaries
 
